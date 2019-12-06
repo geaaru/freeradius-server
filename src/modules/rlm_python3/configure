@@ -2940,27 +2940,44 @@ $as_echo "$as_me: Python sys.exec_prefix \"${PY_EXEC_PREFIX}\"" >&6;}
 		{ $as_echo "$as_me:${as_lineno-$LINENO}: Python sys.version \"${PY_SYS_VERSION}\"" >&5
 $as_echo "$as_me: Python sys.version \"${PY_SYS_VERSION}\"" >&6;}
 
-		if test "x$PY_LIB_DIR" = "x"; then
-			PY_LIB_DIR="$PY_EXEC_PREFIX/lib/python${PY_SYS_VERSION}/config"
-			PY_LIB_LOC="-L$PY_EXEC_PREFIX/lib/python${PY_SYS_VERSION}/config"
-		fi
+		# Check if ${PYTHON3_BIN}-config --cflags is available
+		if test x`which ${PYTHON3_BIN}-config 1>/dev/null 2>&1; echo $?` = "x0" ; then
+			# In Gentoo/Sabayon config directory is related to arch: /usr/lib/python3.6/config-3.6m-x86_64-linux-gnu/
+			# in addition doesn't contain python library that instead is under standard /usr/lib* dir.
+			# So it's better try to use ${PYTHON3_BIN}-config that do the hard work.
+			PY_LDFLAGS=`${PYTHON3_BIN}-config --ldflags`
+			# Avoid relocation R_X86_64_PC32 against undefined hidden symbol `__init_array_start' can not be used when making a shared object
+			PY_LDFLAGS="$PY_LDFLAGS -Wl,--no-whole-archive"
+			PY_CFLAGS=`${PYTHON3_BIN}-config --cflags`
+	  else
+			if test "x$PY_LIB_DIR" = "x"; then
+				PY_LIB_DIR="$PY_EXEC_PREFIX/lib/python${PY_SYS_VERSION}/config"
+				PY_LIB_LOC="-L$PY_EXEC_PREFIX/lib/python${PY_SYS_VERSION}/config"
+			fi
 
-		PY_MAKEFILE="$PY_EXEC_PREFIX/lib/python${PY_SYS_VERSION}/config/Makefile"
-		if test -f ${PY_MAKEFILE}; then
-			PY_LOCAL_MOD_LIBS=`sed -n -e 's/^LOCALMODLIBS=\(.*\)/\1/p' $PY_MAKEFILE | sed -e 's/[[:blank:]]/ /g;s/^ *//;s/ *$//'`
-			{ $as_echo "$as_me:${as_lineno-$LINENO}: Python local_mod_libs \"${PY_LOCAL_MOD_LIBS}\"" >&5
+			PY_MAKEFILE="$PY_EXEC_PREFIX/lib/python${PY_SYS_VERSION}/config/Makefile"
+			if test -f ${PY_MAKEFILE}; then
+				PY_LOCAL_MOD_LIBS=`sed -n -e 's/^LOCALMODLIBS=\(.*\)/\1/p' $PY_MAKEFILE | sed -e 's/[[:blank:]]/ /g;s/^ *//;s/ *$//'`
+				{ $as_echo "$as_me:${as_lineno-$LINENO}: Python local_mod_libs \"${PY_LOCAL_MOD_LIBS}\"" >&5
 $as_echo "$as_me: Python local_mod_libs \"${PY_LOCAL_MOD_LIBS}\"" >&6;}
 
-			PY_BASE_MOD_LIBS=`sed -n -e 's/^BASEMODLIBS=\(.*\)/\1/p' $PY_MAKEFILE | sed -e 's/[[:blank:]]/ /g;s/^ *//;s/ *$//'`
-			{ $as_echo "$as_me:${as_lineno-$LINENO}: Python base_mod_libs \"${PY_BASE_MOD_LIBS}\"" >&5
+				PY_BASE_MOD_LIBS=`sed -n -e 's/^BASEMODLIBS=\(.*\)/\1/p' $PY_MAKEFILE | sed -e 's/[[:blank:]]/ /g;s/^ *//;s/ *$//'`
+				{ $as_echo "$as_me:${as_lineno-$LINENO}: Python base_mod_libs \"${PY_BASE_MOD_LIBS}\"" >&5
 $as_echo "$as_me: Python base_mod_libs \"${PY_BASE_MOD_LIBS}\"" >&6;}
 
-			PY_OTHER_LIBS=`sed -n -e 's/^LIBS=\(.*\)/\1/p' $PY_MAKEFILE | sed -e 's/[[:blank:]]/ /g;s/  / /g;s/^ *//;s/ *$//'`
-			PY_OTHER_LDFLAGS=`sed -n -e 's/^LINKFORSHARED=\(.*\)/\1/p' $PY_MAKEFILE | sed -e 's/[[:blank:]]/ /g;s/  / /g;s/^ *//;s/ *$//'`
-			{ $as_echo "$as_me:${as_lineno-$LINENO}: Python other_libs \"${PY_OTHER_LDFLAGS} ${PY_OTHER_LIBS}\"" >&5
+				PY_OTHER_LIBS=`sed -n -e 's/^LIBS=\(.*\)/\1/p' $PY_MAKEFILE | sed -e 's/[[:blank:]]/ /g;s/  / /g;s/^ *//;s/ *$//'`
+				PY_OTHER_LDFLAGS=`sed -n -e 's/^LINKFORSHARED=\(.*\)/\1/p' $PY_MAKEFILE | sed -e 's/[[:blank:]]/ /g;s/  / /g;s/^ *//;s/ *$//'`
+				{ $as_echo "$as_me:${as_lineno-$LINENO}: Python other_libs \"${PY_OTHER_LDFLAGS} ${PY_OTHER_LIBS}\"" >&5
 $as_echo "$as_me: Python other_libs \"${PY_OTHER_LDFLAGS} ${PY_OTHER_LIBS}\"" >&6;}
+			fi
+
+			PY_LDFLAGS="$PY_LIB_LOC $PY_LOCALMODLIBS $PY_BASE_MOD_LIBS $PY_OTHER_LIBS -lm"
 		fi
-		PY_EXTRA_LIBS="$PY_LOCALMODLIBS $PY_BASE_MOD_LIBS $PY_OTHER_LIBS"
+
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: Python CFLAGS \"${PY_CFLAGS}\"" >&5
+$as_echo "$as_me: Python CFLAGS \"${PY_CFLAGS}\"" >&6;}
+		{ $as_echo "$as_me:${as_lineno-$LINENO}: Python LDFLAGS \"${PY_LDFLAGS}\"" >&5
+$as_echo "$as_me: Python LDFLAGS \"${PY_LDFLAGS}\"" >&6;}
 
 		old_CFLAGS=$CFLAGS
 		CFLAGS="$CFLAGS $PY_CFLAGS"
@@ -3195,14 +3212,14 @@ smart_prefix=
 		CFLAGS=$old_CFLAGS
 
 		if test "x$ac_cv_header_Python_h" = "xyes"; then
-			mod_cflags="$SMART_CPPFLAGS"
+			mod_cflags="$PY_CFLAGS $SMART_CPPFLAGS"
 		else
 			fail="$fail Python.h"
 			targetname=
 		fi
 
 		old_LIBS=$LIBS
-		LIBS="$LIBS $PY_LIB_LOC $PY_EXTRA_LIBS -lm"
+		LIBS="$LIBS $PY_LDFLAGS"
 		smart_try_dir=$PY_LIB_DIR
 
 
@@ -3382,7 +3399,7 @@ fi
 
 		eval t=\${ac_cv_lib_${sm_lib_safe}_${sm_func_safe}}
 		if test "x$t" = "xyes"; then
-			mod_ldflags="$PY_LIB_LOC $PY_EXTRA_LIBS $SMART_LIBS -lm"
+			mod_ldflags="$PY_LDFLAGS $SMART_LIBS"
 			targetname=rlm_python3
 		else
 
@@ -3561,7 +3578,7 @@ fi
 
 			eval t=\${ac_cv_lib_${sm_lib_safe}_${sm_func_safe}}
 			if test "x$t" = "xyes"; then
-				mod_ldflags="$PY_LIB_LOC $PY_EXTRA_LIBS $SMART_LIBS -lm"
+				mod_ldflags="$PY_LDFLAGS $SMART_LIBS"
 				targetname=rlm_python3
 			else
 				targetname=

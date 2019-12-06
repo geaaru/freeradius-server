@@ -74,24 +74,39 @@ if test x$with_[]modname != xno; then
 		PY_SYS_VERSION=`${PYTHON3_BIN} -c 'import sys ; print(sys.version[[0:3]])'`
 		AC_MSG_NOTICE([Python sys.version \"${PY_SYS_VERSION}\"])
 
-		if test "x$PY_LIB_DIR" = "x"; then
-			PY_LIB_DIR="$PY_EXEC_PREFIX/lib/python${PY_SYS_VERSION}/config"
-			PY_LIB_LOC="-L$PY_EXEC_PREFIX/lib/python${PY_SYS_VERSION}/config"
+		# Check if ${PYTHON3_BIN}-config --cflags is available
+		if test x`which ${PYTHON3_BIN}-config 1>/dev/null 2>&1; echo $?` = "x0" ; then
+			# In Gentoo/Sabayon config directory is related to arch: /usr/lib/python3.6/config-3.6m-x86_64-linux-gnu/
+			# in addition doesn't contain python library that instead is under standard /usr/lib* dir.
+			# So it's better try to use ${PYTHON3_BIN}-config that do the hard work.
+			PY_LDFLAGS=`${PYTHON3_BIN}-config --ldflags`
+			# Avoid relocation R_X86_64_PC32 against undefined hidden symbol `__init_array_start' can not be used when making a shared object
+			PY_LDFLAGS="$PY_LDFLAGS -Wl,--no-whole-archive"
+			PY_CFLAGS=`${PYTHON3_BIN}-config --cflags`
+	  else
+			if test "x$PY_LIB_DIR" = "x"; then
+				PY_LIB_DIR="$PY_EXEC_PREFIX/lib/python${PY_SYS_VERSION}/config"
+				PY_LIB_LOC="-L$PY_EXEC_PREFIX/lib/python${PY_SYS_VERSION}/config"
+			fi
+
+			PY_MAKEFILE="$PY_EXEC_PREFIX/lib/python${PY_SYS_VERSION}/config/Makefile"
+			if test -f ${PY_MAKEFILE}; then
+				PY_LOCAL_MOD_LIBS=`sed -n -e 's/^LOCALMODLIBS=\(.*\)/\1/p' $PY_MAKEFILE | sed -e 's/[[[:blank:]]]/ /g;s/^ *//;s/ *$//'`
+				AC_MSG_NOTICE([Python local_mod_libs \"${PY_LOCAL_MOD_LIBS}\"])
+
+				PY_BASE_MOD_LIBS=`sed -n -e 's/^BASEMODLIBS=\(.*\)/\1/p' $PY_MAKEFILE | sed -e 's/[[[:blank:]]]/ /g;s/^ *//;s/ *$//'`
+				AC_MSG_NOTICE([Python base_mod_libs \"${PY_BASE_MOD_LIBS}\"])
+
+				PY_OTHER_LIBS=`sed -n -e 's/^LIBS=\(.*\)/\1/p' $PY_MAKEFILE | sed -e 's/[[[:blank:]]]/ /g;s/  / /g;s/^ *//;s/ *$//'`
+				PY_OTHER_LDFLAGS=`sed -n -e 's/^LINKFORSHARED=\(.*\)/\1/p' $PY_MAKEFILE | sed -e 's/[[[:blank:]]]/ /g;s/  / /g;s/^ *//;s/ *$//'`
+				AC_MSG_NOTICE([Python other_libs \"${PY_OTHER_LDFLAGS} ${PY_OTHER_LIBS}\"])
+			fi
+
+			PY_LDFLAGS="$PY_LIB_LOC $PY_LOCALMODLIBS $PY_BASE_MOD_LIBS $PY_OTHER_LIBS -lm"
 		fi
 
-		PY_MAKEFILE="$PY_EXEC_PREFIX/lib/python${PY_SYS_VERSION}/config/Makefile"
-		if test -f ${PY_MAKEFILE}; then
-			PY_LOCAL_MOD_LIBS=`sed -n -e 's/^LOCALMODLIBS=\(.*\)/\1/p' $PY_MAKEFILE | sed -e 's/[[[:blank:]]]/ /g;s/^ *//;s/ *$//'`
-			AC_MSG_NOTICE([Python local_mod_libs \"${PY_LOCAL_MOD_LIBS}\"])
-
-			PY_BASE_MOD_LIBS=`sed -n -e 's/^BASEMODLIBS=\(.*\)/\1/p' $PY_MAKEFILE | sed -e 's/[[[:blank:]]]/ /g;s/^ *//;s/ *$//'`
-			AC_MSG_NOTICE([Python base_mod_libs \"${PY_BASE_MOD_LIBS}\"])
-
-			PY_OTHER_LIBS=`sed -n -e 's/^LIBS=\(.*\)/\1/p' $PY_MAKEFILE | sed -e 's/[[[:blank:]]]/ /g;s/  / /g;s/^ *//;s/ *$//'`
-			PY_OTHER_LDFLAGS=`sed -n -e 's/^LINKFORSHARED=\(.*\)/\1/p' $PY_MAKEFILE | sed -e 's/[[[:blank:]]]/ /g;s/  / /g;s/^ *//;s/ *$//'`
-			AC_MSG_NOTICE([Python other_libs \"${PY_OTHER_LDFLAGS} ${PY_OTHER_LIBS}\"])
-		fi
-		PY_EXTRA_LIBS="$PY_LOCALMODLIBS $PY_BASE_MOD_LIBS $PY_OTHER_LIBS"
+		AC_MSG_NOTICE([Python CFLAGS \"${PY_CFLAGS}\"])
+		AC_MSG_NOTICE([Python LDFLAGS \"${PY_LDFLAGS}\"])
 
 		old_CFLAGS=$CFLAGS
 		CFLAGS="$CFLAGS $PY_CFLAGS"
@@ -100,27 +115,27 @@ if test x$with_[]modname != xno; then
 		CFLAGS=$old_CFLAGS
 
 		if test "x$ac_cv_header_Python_h" = "xyes"; then
-			mod_cflags="$SMART_CPPFLAGS"
+			mod_cflags="$PY_CFLAGS $SMART_CPPFLAGS"
 		else
 			fail="$fail Python.h"
 			targetname=
 		fi
 
 		old_LIBS=$LIBS
-		LIBS="$LIBS $PY_LIB_LOC $PY_EXTRA_LIBS -lm"
+		LIBS="$LIBS $PY_LDFLAGS"
 		smart_try_dir=$PY_LIB_DIR
 		FR_SMART_CHECK_LIB(python${PY_SYS_VERSION}, Py_Initialize)
 		LIBS=$old_LIBS
 
 		eval t=\${ac_cv_lib_${sm_lib_safe}_${sm_func_safe}}
 		if test "x$t" = "xyes"; then
-			mod_ldflags="$PY_LIB_LOC $PY_EXTRA_LIBS $SMART_LIBS -lm"
+			mod_ldflags="$PY_LDFLAGS $SMART_LIBS"
 			targetname=modname
 		else
 			FR_SMART_CHECK_LIB(python${PY_SYS_VERSION}m, Py_Initialize)
 			eval t=\${ac_cv_lib_${sm_lib_safe}_${sm_func_safe}}
 			if test "x$t" = "xyes"; then
-				mod_ldflags="$PY_LIB_LOC $PY_EXTRA_LIBS $SMART_LIBS -lm"
+				mod_ldflags="$PY_LDFLAGS $SMART_LIBS"
 				targetname=modname
 			else
 				targetname=
